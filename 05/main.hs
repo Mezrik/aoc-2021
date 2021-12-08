@@ -1,10 +1,13 @@
 -- https://adventofcode.com/2021/day/5
 import Data.List.Split (splitOn)
 import Data.List (unfoldr, sort)
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Maybe
+
 
 type Point = (Int, Int)
 type Line = (Point, Point)
-type Diagram = [[Int]]
 
 tuplify :: [String] -> (Int, Int)
 tuplify [x, y] = (read x, read y)
@@ -39,26 +42,31 @@ bresenham (pa@(xa, ya), pb@(xb, yb)) = map maySwitch . unfoldr go $ (x1,y1,0)
                             then (yTemp+ystep,tempError-deltax)
                             else (yTemp,tempError)
 
-writePoint :: Point -> Diagram -> Diagram
-writePoint (x, y) diagram = map (\(row, i) -> map (\(val, j) -> eval val i j) (enumerate row)) (enumerate diagram)
+writeLine :: Map Point Int -> Line -> Map Point Int
+writeLine linesMap line = foldl updateMap linesMap entireLine
   where
-    enumerate xs = zip xs [0..(length xs)]
-    eval val i j = if i == x && j == y then val + 1 else val
+    entireLine = bresenham line
+    updateMap acc c = 
+      if Map.member c acc then Map.update (\z -> Just (z + 1)) c acc else Map.insert c 1 acc
 
-writeLines :: [Line] -> Diagram -> Diagram
-writeLines [] diagram = diagram
-writeLines (x:xs) diagram = writeLines xs updatedDiagram
-  where
-    line = bresenham x
-    updatedDiagram = foldl (\acc c -> acc) diagram line
 
-countOverlaps :: Diagram -> Int
-countOverlaps = foldl (\total row -> foldl (\count val -> if val >= 2 then count + 1 else count) total row) 0
+writeLines :: [Line] -> Map Point Int
+writeLines xs = foldl writeLine (Map.fromList []) xs
+
+countOverlaps :: Map Point Int -> Int
+countOverlaps = foldl (\acc c -> if c >= 2 then acc + 1 else acc) 0
+
+filterDiagonal :: [Line] -> [Line]
+filterDiagonal = filter (\((x1, y1), (x2, y2)) -> x1 == x2 || y1 == y2)
 
 main :: IO ()
 main = do
   input <- readFile "input.txt"
   let parsedLines = constParseRecords  $ lines input
   let (xs, ys) = getValues parsedLines
-  let diagram = writeLines parsedLines (replicate (maximum xs) (replicate (maximum ys) 0))
-  print diagram
+  let linesMapWithoutDiagonal = writeLines $ filterDiagonal parsedLines
+  let linesMapWithDiagonal = writeLines parsedLines
+  -- First assignment
+  print $ countOverlaps linesMapWithoutDiagonal
+  -- Second assignment
+  print $ countOverlaps linesMapWithDiagonal
